@@ -906,20 +906,14 @@ Object.assign(AIExport, {
         }
         continue;
       }
-      // DALL-E 이미지 생성 감지 (3가지 API 타입)
-      // Type 1: msg.metadata.async_task_type === 'image_gen'
-      // Type 2: msg.metadata.image_gen_title (async_task_type 없음)
-      // Type 3: part.metadata.dalle 또는 part.metadata.generation (커스텀 GPT)
-      else if (role === 'tool' && (() => {
-        const hasDalleInMeta = msg.metadata?.async_task_type === 'image_gen' || msg.metadata?.image_gen_title;
-        const hasDalleInParts = contentType === 'multimodal_text' && Array.isArray(msg.content.parts) &&
-          msg.content.parts.some((p: ChatGPTMessagePart) =>
-            typeof p === 'object' && p.content_type === 'image_asset_pointer' &&
-            (p.metadata?.dalle || p.metadata?.generation)
-          );
-        return hasDalleInMeta || hasDalleInParts;
-      })()) {
-        // imageTitle 추출 우선순위: image_gen_title > async_task_title > part.metadata.dalle.prompt
+      // DALL-E 이미지 생성 감지: part.metadata.dalle 또는 part.metadata.generation (항상 있음)
+      else if (role === 'tool' && contentType === 'multimodal_text' && Array.isArray(msg.content.parts) &&
+        msg.content.parts.some((p: ChatGPTMessagePart) =>
+          typeof p === 'object' && p.content_type === 'image_asset_pointer' &&
+          (p.metadata?.dalle || p.metadata?.generation)
+        )
+      ) {
+        // imageTitle 추출: 있으면 사용 (image_gen_title > async_task_title > dalle.prompt)
         let imageTitle = msg.metadata?.image_gen_title || msg.metadata?.async_task_title || '';
         const actualDallePrompt = pendingDallePrompt || '';
         pendingDallePrompt = null;
@@ -957,47 +951,23 @@ Object.assign(AIExport, {
         }
         continue;
       }
-      // multimodal_text: 이미지 포함 메시지
+      // multimodal_text: 이미지 포함 메시지 (사용자 업로드 등, DALL-E는 위에서 처리됨)
       else if (contentType === 'multimodal_text' && Array.isArray(msg.content.parts)) {
-        let hasToolImages = false;
-        let toolImageTitle: string | null = null;
-
         for (const part of msg.content.parts) {
           if (typeof part === 'string') {
             content += part + '\n';
           } else if (typeof part === 'object' && part.content_type === 'image_asset_pointer' && part.asset_pointer) {
             try {
-              // Type 3: 커스텀 GPT의 DALL-E - part.metadata에서 정보 추출
-              const partMeta = part.metadata;
-              const isDalleFromPart = partMeta?.dalle || partMeta?.generation;
-              const partImageTitle = isDalleFromPart ? (partMeta?.dalle?.prompt || null) : null;
-              if (partImageTitle) toolImageTitle = partImageTitle;
-
-              const imageInfo = await this.fetchImage(part, conversationId, token, imageCounter, partImageTitle);
+              const imageInfo = await this.fetchImage(part, conversationId, token, imageCounter, null);
               if (imageInfo) {
                 images.push(imageInfo);
                 messageImages.push(imageInfo.filename);
                 imageCounter++;
-                if (role === 'tool') hasToolImages = true;
               }
             } catch (e) {
               console.error('[ChatGPT] Image fetch failed:', e);
             }
           }
-        }
-
-        // Tool 메시지에서 이미지가 있으면 별도 assistant 메시지로 추가
-        // (DALL-E 블록을 통과하지 못한 Type A 이미지 처리)
-        if (role === 'tool' && hasToolImages && messageImages.length > 0) {
-          messages.push({
-            role: 'assistant',
-            content: '',
-            timestamp: msg.create_time,
-            images: [...messageImages],  // 복사본 사용
-            imageTitle: toolImageTitle || undefined
-          });
-          // Tool 메시지의 텍스트는 별도로 처리되도록 messageImages 초기화
-          messageImages.length = 0;
         }
       } else if (msg.content.parts && Array.isArray(msg.content.parts)) {
         content = msg.content.parts.filter((p): p is string => typeof p === 'string').join('\n');
