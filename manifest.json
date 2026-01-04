@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Export",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Export conversations from Claude, Gemini, and other AI services to Markdown",
   "permissions": [
     "activeTab",
