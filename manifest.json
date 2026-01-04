@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "AI Export",
+  "version": "0.6.0",
+  "description": "Export conversations from Claude, Gemini, and other AI services to Markdown",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://chatgpt.com/*",
+    "https://oaidalleapiprodscus.blob.core.windows.net/*"
+  ],
+  "action": {
+    "default_popup": "dist/popup/popup.html",
+    "default_icon": {
+      "16": "dist/icons/icon16.png",
+      "48": "dist/icons/icon48.png",
+      "128": "dist/icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["dist/lib/core.js", "dist/exporters/claude.js", "dist/content-script.js"],
+      "all_frames": false
+    },
+    {
+      "matches": ["https://gemini.google.com/*"],
+      "js": ["dist/lib/core.js", "dist/exporters/gemini.js", "dist/content-script.js"],
+      "all_frames": false
+    },
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["dist/lib/core.js", "dist/exporters/chatgpt.js", "dist/content-script.js"],
+      "all_frames": false
+    }
+  ],
+  "background": {
+    "service_worker": "dist/background.js"
+  },
+  "icons": {
+    "16": "dist/icons/icon16.png",
+    "48": "dist/icons/icon48.png",
+    "128": "dist/icons/icon128.png"
+  }
+}

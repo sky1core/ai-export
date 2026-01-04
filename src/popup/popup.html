@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Export</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 280px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a1a;
+      color: #e0e0e0;
+    }
+
+    h1 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h1 img {
+      width: 20px;
+      height: 20px;
+    }
+
+    .options {
+      margin-bottom: 14px;
+      padding: 10px;
+      background: #252525;
+      border-radius: 6px;
+    }
+
+    .option {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .option:last-child {
+      margin-bottom: 0;
+    }
+
+    .option input {
+      margin-right: 8px;
+      accent-color: #4a9eff;
+    }
+
+    .option label {
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: #4a9eff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #3a8eef;
+    }
+
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #888;
+      text-align: center;
+      min-height: 16px;
+    }
+
+    .status.error {
+      color: #ff6b6b;
+    }
+
+    .status.success {
+      color: #69db7c;
+    }
+
+    .info {
+      margin-bottom: 14px;
+      padding: 10px;
+      background: #252525;
+      border-radius: 6px;
+    }
+
+    .info-row {
+      display: flex;
+      align-items: center;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .info-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .info-label {
+      color: #888;
+      min-width: 50px;
+    }
+
+    .info-value {
+      color: #fff;
+      font-weight: 500;
+    }
+
+    .info-value.service {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .info-value.chatgpt {
+      background: #10a37f;
+    }
+
+    .info-value.claude {
+      background: #cc785c;
+    }
+
+    .info-value.gemini {
+      background: #4285f4;
+    }
+
+    .info-loading {
+      color: #666;
+      font-style: italic;
+    }
+
+    .info-error {
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    <img src="../../icons/icon48.png" alt="">
+    AI Export
+  </h1>
+
+  <div id="info" class="info">
+    <div class="info-row">
+      <span class="info-label">LLM</span>
+      <span id="infoService" class="info-value info-loading">로딩 중...</span>
+    </div>
+  </div>
+
+  <div class="options">
+    <div class="option">
+      <input type="checkbox" id="showTimestamp">
+      <label for="showTimestamp">날짜/시각 표시</label>
+    </div>
+    <div class="option">
+      <input type="checkbox" id="showHiddenMessages">
+      <label for="showHiddenMessages">숨은 메시지 포함</label>
+    </div>
+  </div>
+
+  <button id="exportBtn">대화 저장 (Markdown)</button>
+
+  <div id="status" class="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
