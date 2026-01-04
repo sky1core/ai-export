@@ -22,7 +22,7 @@ Claude, Gemini, ChatGPT 대화를 마크다운으로 내보내는 크롬 확장 
 ### 직접 빌드
 
 ```bash
-git clone https://github.com/user/ai-export.git
+git clone https://github.com/sky1core/ai-export.git
 cd ai-export
 npm install
 npm run build
@@ -40,6 +40,7 @@ npm run build
 ## 옵션
 
 - **날짜/시각 표시**: 각 메시지에 타임스탬프 추가
+- **모델명 표시**: 어시스턴트 응답에 사용된 모델명 표시
 - **숨은 메시지 포함**: 웹 검색, 코드 실행 등 도구 사용 내역 포함
 
 ## 저장 내용
