@@ -25,6 +25,22 @@ export interface HiddenMessageInfo {
   content: string;
 }
 
+// 세그먼트 타입 (AssistantMessage 내 순서 유지용)
+export interface TextSegment {
+  type: 'text';
+  content: string;
+}
+
+export interface HiddenSegment {
+  type: 'hidden';
+  category: string;
+  title?: string | null;
+  depth?: number | null;
+  content: string;
+}
+
+export type Segment = TextSegment | HiddenSegment;
+
 interface MessageBaseInput {
   content: string;
   timestamp?: number | null;
@@ -48,6 +64,7 @@ export interface UserMessageInput extends MessageBaseInput {}
 export interface AssistantMessageInput extends MessageBaseInput {
   model?: string | null;
   hiddenMessages?: HiddenMessageInfo[];
+  segments?: Segment[];  // 블록 순서 유지용 (있으면 content/hiddenMessages 대신 사용)
 }
 
 export interface HiddenMessageInput {
@@ -109,6 +126,7 @@ export class AssistantMessage {
   readonly searchResults?: SearchResult[];
   readonly model?: string | null;
   readonly hiddenMessages?: HiddenMessageInfo[];
+  readonly segments?: Segment[];  // 블록 순서 유지용
   #brand: true = true;
 
   constructor(input: AssistantMessageInput) {
@@ -121,6 +139,7 @@ export class AssistantMessage {
     this.searchResults = freezeObjectList(input.searchResults);
     if (input.model !== undefined) this.model = input.model;
     this.hiddenMessages = freezeObjectList(input.hiddenMessages);
+    this.segments = freezeObjectList(input.segments);
     Object.freeze(this);
   }
 }
@@ -160,6 +179,7 @@ export interface ExportOptions {
   showTimestamp?: boolean;
   showHiddenMessages?: boolean;
   hiddenMessageDepth?: number;
+  showModelName?: boolean;
 }
 
 // Export 결과

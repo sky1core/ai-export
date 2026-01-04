@@ -114,6 +114,7 @@ interface ExtractedMessage {
   imageTitle?: string;
   dallePrompt?: string;
   canvasFile?: string;
+  canvasOriginalName?: string | null;
   thinkingContent?: string;
   thinkingTitle?: string;
   hiddenMessages?: ExtractedHiddenMessage[];
@@ -317,7 +318,7 @@ Object.assign(AIExport, {
         if (msg.canvasFile) {
           assistantFiles.push({
             filename: msg.canvasFile,
-            originalName: msg.canvasFile
+            originalName: msg.canvasOriginalName || msg.canvasFile
           });
         }
         if (msg.files?.length) {
@@ -382,6 +383,7 @@ Object.assign(AIExport, {
 
     // Canvas 파일 pending (다음 텍스트 assistant 메시지에 합침)
     let pendingCanvasFile: string | null = null;
+    let pendingCanvasOriginalName: string | null = null;
 
     const ensureUniqueFilename = (filename: string): string => {
       let candidate = filename;
@@ -427,10 +429,11 @@ Object.assign(AIExport, {
       const blob = await AIExport.utils.fetchAsBlob(signedUrl);
       const fallbackExt = AIExport.utils.getExtensionFromMime(attachment.mime_type || '') || '';
       const sanitizedName = attachment.name ? AIExport.utils.sanitizeFilename(attachment.name) : '';
-      const baseName = sanitizedName || `file_${attachmentCounter}${fallbackExt}`;
-      const filename = ensureUniqueFilename(baseName);
+      const baseName = sanitizedName || `file${fallbackExt}`;
+      const idPrefix = attachment.id.slice(0, 8);
+      const filename = `upload_${idPrefix}_${baseName}`;
 
-      return { filename, blob, originalName: attachment.name || filename };
+      return { filename, blob, originalName: attachment.name || baseName };
     };
 
     const normalizeSearchQueries = (metadata?: ChatGPTMessageMetadata): { q: string }[] => {
@@ -519,21 +522,31 @@ Object.assign(AIExport, {
     const formatToolCallBlock = (text: string): string => {
       const trimmed = text.trim();
       if (!trimmed) return '';
-      const normalized = trimmed.replace(/\r\n/g, '\n');
-      if (normalized.includes('```')) {
-        return normalized;
+      if (trimmed.includes('```')) {
+        return trimmed;
       }
-      return `\`\`\`\n${normalized}\n\`\`\``;
+      // JSON이면 pretty-print
+      try {
+        const parsed = JSON.parse(trimmed);
+        return `\`\`\`\n${JSON.stringify(parsed, null, 2)}\n\`\`\``;
+      } catch {
+        return `\`\`\`\n${trimmed}\n\`\`\``;
+      }
     };
 
     const formatToolResultBlock = (text: string): string => {
       const trimmed = text.trim();
       if (!trimmed) return '';
-      const normalized = trimmed.replace(/\r\n/g, '\n');
-      if (normalized.includes('```')) {
-        return normalized;
+      if (trimmed.includes('```')) {
+        return trimmed;
       }
-      return `\`\`\`\n${normalized}\n\`\`\``;
+      // JSON이면 pretty-print
+      try {
+        const parsed = JSON.parse(trimmed);
+        return `\`\`\`\n${JSON.stringify(parsed, null, 2)}\n\`\`\``;
+      } catch {
+        return `\`\`\`\n${trimmed}\n\`\`\``;
+      }
     };
 
     const stripFenceMarkers = (text: string): string => {
@@ -861,6 +874,7 @@ Object.assign(AIExport, {
 
             // Canvas 파일 pending (다음 텍스트 assistant에 합침)
             pendingCanvasFile = filename;
+            pendingCanvasOriginalName = safeTitle + ext;
           } else if (hasUpdates && canvasStates[docId]) {
             // 수정: 버전 N+1
             const state = canvasStates[docId];
@@ -880,6 +894,7 @@ Object.assign(AIExport, {
 
             // Canvas 파일 pending (다음 텍스트 assistant에 합침)
             pendingCanvasFile = filename;
+            pendingCanvasOriginalName = safeTitle + stateExt;
           }
           pendingCanvasUpdate = null;
         }
@@ -1006,7 +1021,9 @@ Object.assign(AIExport, {
           // Pending Canvas 파일 합치기
           if (pendingCanvasFile) {
             message.canvasFile = pendingCanvasFile;
+            message.canvasOriginalName = pendingCanvasOriginalName;
             pendingCanvasFile = null;
+            pendingCanvasOriginalName = null;
           }
         }
         messages.push(message);
@@ -1124,7 +1141,9 @@ Object.assign(AIExport, {
   removeCitationMarkers(text: string): string {
     if (!text) return text;
     return text.replace(/\u3010[^】]*\u3011/g, '')
-               .replace(/citeturn\d+[a-zA-Z]+\d+/g, '');
+               .replace(/[\uE200-\uE2FF]/g, '')  // Private Use Area 문자 제거
+               .replace(/(?:file)?citetur(?:n\d*[a-zA-Z]*\d*)?/g, '')
+               .replace(/turn\d+[a-zA-Z]+\d+/g, '');  // cite 없이 turn만 있는 경우
   },
 
   // currentNode가 없을 때 사용하는 기존 DFS 방식
@@ -1183,20 +1202,28 @@ Object.assign(AIExport, {
   // Citation 마커를 링크로 대체
   replaceCitationMarkers(text: string, contentReferences?: ChatGPTContentReference[]): string {
     if (!text) return text;
+
+    // Private Use Area 문자 먼저 제거 (citation 마커를 감싸는 특수 문자)
+    const cleanText = text.replace(/[\uE200-\uE2FF]/g, '');
+
     if (!contentReferences?.length) {
-      return text.replace(/(?:cite)?turn\d+view\d+/g, '').trim();
+      // fileciteturn0file0, citeturn0view0, citetur, turn0view0 등 다양한 형식 처리
+      return cleanText.replace(/(?:file)?citetur(?:n\d*[a-zA-Z]*\d*)?/g, '')
+                      .replace(/turn\d+[a-zA-Z]+\d+/g, '').trim();
     }
 
     const sorted = [...contentReferences].sort((a, b) => b.start_idx - a.start_idx);
 
-    let result = text;
+    let result = cleanText;
     for (const ref of sorted) {
       if (ref.matched_text && ref.alt) {
         result = result.substring(0, ref.start_idx) + ref.alt + result.substring(ref.end_idx);
       }
     }
 
-    return result.trim();
+    // 대체되지 않고 남은 citation marker 제거 (부분 매칭된 잔여물 포함)
+    return result.replace(/(?:file)?citetur(?:n\d*[a-zA-Z]*\d*)?/g, '')
+                 .replace(/turn\d+[a-zA-Z]+\d+/g, '').trim();
   },
 
   // 유틸리티 함수들

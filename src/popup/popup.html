@@ -152,6 +152,17 @@
     .info-error {
       color: #888;
     }
+
+    .info-notice {
+      font-size: 11px;
+      color: #999;
+      margin-top: 6px;
+      display: none;
+    }
+
+    .info-notice.visible {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -161,16 +172,18 @@
   </h1>
 
   <div id="info" class="info">
-    <div class="info-row">
-      <span class="info-label">LLM</span>
-      <span id="infoService" class="info-value info-loading">로딩 중...</span>
-    </div>
+    <span id="infoService" class="info-value info-loading">로딩 중...</span>
+    <div id="notice" class="info-notice"></div>
   </div>
 
   <div class="options">
     <div class="option">
       <input type="checkbox" id="showTimestamp">
       <label for="showTimestamp">날짜/시각 표시</label>
+    </div>
+    <div class="option">
+      <input type="checkbox" id="showModelName">
+      <label for="showModelName">모델명 표시</label>
     </div>
     <div class="option">
       <input type="checkbox" id="showHiddenMessages">

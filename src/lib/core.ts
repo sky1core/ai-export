@@ -20,6 +20,7 @@ import {
   type ImageInfo,
   type FileInfo,
   type SearchResult,
+  type Segment,
 } from '../types/index.js';
 
 // 공통 유틸리티: exporter에서 재구현하지 말고 여기만 사용한다.
@@ -182,6 +183,7 @@ const allowedAssistantKeys = new Set([
   ...allowedUserKeys,
   'model',
   'hiddenMessages',
+  'segments',
 ]);
 
 const allowedHiddenKeys = new Set([
@@ -305,6 +307,48 @@ function normalizeHiddenMessages(list: HiddenMessageInfo[] | undefined, context:
       depth: msg.depth,
       content: msg.content,
     };
+  });
+}
+
+const allowedSegmentKeys = new Set(['type', 'content', 'category', 'title', 'depth']);
+
+function normalizeSegments(list: Segment[] | undefined, context: string): Segment[] | undefined {
+  if (list === null) {
+    throw new Error(`[AIExport] Expected array for ${context}`);
+  }
+  if (!list || list.length === 0) return undefined;
+  if (!Array.isArray(list)) {
+    throw new Error(`[AIExport] Expected array for ${context}`);
+  }
+  return list.map((seg, index) => {
+    if (!seg || typeof seg !== 'object') {
+      throw new Error(`[AIExport] Expected object for ${context}[${index}]`);
+    }
+    const ctx = `${context}[${index}]`;
+    assertAllowedKeys(seg as Record<string, unknown>, allowedSegmentKeys, ctx);
+
+    if (seg.type === 'text') {
+      assertString(seg.content, `${ctx}.content`);
+      return { type: 'text' as const, content: seg.content };
+    } else if (seg.type === 'hidden') {
+      assertString(seg.category, `${ctx}.category`);
+      if (seg.title !== undefined) {
+        assertStringOrNull(seg.title, `${ctx}.title`);
+      }
+      if (seg.depth !== undefined) {
+        assertNumberOrNull(seg.depth, `${ctx}.depth`);
+      }
+      assertString(seg.content, `${ctx}.content`);
+      return {
+        type: 'hidden' as const,
+        category: seg.category,
+        title: seg.title ?? null,
+        depth: seg.depth,
+        content: seg.content,
+      };
+    } else {
+      throw new Error(`[AIExport] Invalid segment type at ${ctx}: ${(seg as { type: string }).type}`);
+    }
   });
 }
 
@@ -435,7 +479,7 @@ function assertValidConversation(conversation: Conversation): void {
  * - Assistant: 🤖 **Assistant** · 타임스탬프 · 모델명
  * - Hidden: 헤더 없음 (renderHiddenMessage에서 처리)
  */
-function renderHeader(msg: Message, showTimestamp: boolean): string {
+function renderHeader(msg: Message, showTimestamp: boolean, showModelName: boolean): string {
   // Hidden 메시지는 헤더 없음 (renderHiddenMessage에서 별도 처리)
   if (msg instanceof HiddenMessage) {
     return '';
@@ -452,9 +496,9 @@ function renderHeader(msg: Message, showTimestamp: boolean): string {
   if (showTimestamp && timestamp) {
     header += ` · ${utils.formatTimestamp(timestamp)}`;
   }
-  // model은 AssistantMessage에만 존재
-  if (msg instanceof AssistantMessage && (msg as AssistantMessage).model) {
-    header += ` · ${(msg as AssistantMessage).model}`;
+  // model은 AssistantMessage에만 존재 (showModelName 옵션으로 제어)
+  if (showModelName && msg instanceof AssistantMessage && (msg as AssistantMessage).model) {
+    header += ` · *${(msg as AssistantMessage).model}*`;
   }
 
   return header + '\n\n';
@@ -528,27 +572,44 @@ function resolveHiddenMessageDepth(
  * - 파일/이미지 링크 출력 위치도 여기에서만 정의한다.
  */
 function toMarkdown(conversation: Conversation, options: ExportOptions = {}): string {
-  const { showTimestamp = false, showHiddenMessages = false, hiddenMessageDepth } = options;
+  const { showTimestamp = false, showHiddenMessages = false, hiddenMessageDepth, showModelName = false } = options;
   const normalizedHiddenMessageDepth =
     typeof hiddenMessageDepth === 'number' && Number.isFinite(hiddenMessageDepth)
       ? Math.max(1, Math.floor(hiddenMessageDepth))
       : 1;
   assertValidConversation(conversation);
-  const { title, createdAt, exportedAt, basename, messages } = conversation;
+  const { title, service, createdAt, exportedAt, basename, messages } = conversation;
 
   let md = `# ${title || '제목 없음'}\n\n`;
 
-  // 메타 정보 (이탤릭)
+  // 메타 정보: 서비스명(볼드) + 나머지(이탤릭)
+  let serviceBold = '';
+  if (service) {
+    // 서비스명 대문자화 (chatgpt → ChatGPT, claude → Claude)
+    const serviceName = service === 'chatgpt' ? 'ChatGPT' :
+      service.charAt(0).toUpperCase() + service.slice(1);
+    serviceBold = `**${serviceName}** `;
+  }
   const metaLines: string[] = [];
   if (showTimestamp && createdAt) {
     metaLines.push(`Created: ${utils.formatTimestamp(createdAt)}`);
   }
-  metaLines.push(`Exported: ${utils.formatTimestamp(exportedAt)}`);
+  if (showTimestamp) {
+    metaLines.push(`Exported: ${utils.formatTimestamp(exportedAt)}`);
+  }
   if (showHiddenMessages) {
     metaLines.push('Includes hidden messages');
   }
-  if (metaLines.length > 0) {
-    md += '*' + metaLines.join(' | ') + '*\n\n';
+  if (serviceBold || metaLines.length > 0) {
+    let metaLine = serviceBold;
+    if (metaLines.length > 0) {
+      if (serviceBold) {
+        metaLine += '*| ' + metaLines.join(' | ') + '*';
+      } else {
+        metaLine += '*' + metaLines.join(' | ') + '*';
+      }
+    }
+    md += metaLine + '\n\n';
   }
 
   // 메시지 변환
@@ -574,7 +635,7 @@ function toMarkdown(conversation: Conversation, options: ExportOptions = {}): st
     }
 
     // 헤더
-    md += renderHeader(msg, showTimestamp);
+    md += renderHeader(msg, showTimestamp, showModelName);
 
     // User/Assistant 공통 필드 (숨은 메시지에는 없음)
     const userOrAssistant = msg as UserMessage | AssistantMessage;
@@ -627,33 +688,59 @@ function toMarkdown(conversation: Conversation, options: ExportOptions = {}): st
     if (userOrAssistant.files?.length) {
       for (const file of userOrAssistant.files) {
         const filePath = basename ? `${basename}/${file.filename}` : file.filename;
-        md += `📄 [${file.filename}](${filePath})\n\n`;
+        // 표시명: originalName 우선, 없으면 filename
+        let displayName = file.originalName || file.filename;
+        // filename에서 버전 추출 (artifact_xxx_v2_... 패턴)
+        const versionMatch = file.filename.match(/_v(\d+)_/);
+        if (versionMatch && file.originalName) {
+          displayName = `${file.originalName} (v${versionMatch[1]})`;
+        }
+        md += `📄 [${displayName}](${filePath})\n\n`;
       }
     }
 
-    // assistant.hiddenMessages 렌더링 (Thinking, Tool 등)
+    // Assistant 메시지: segments 또는 기존 방식
     if (msg instanceof AssistantMessage) {
       const assistantMsg = msg as AssistantMessage;
-      if (showHiddenMessages && assistantMsg.hiddenMessages?.length) {
-        for (const sys of assistantMsg.hiddenMessages) {
-          const depth = resolveHiddenMessageDepth(sys.depth, normalizedHiddenMessageDepth);
-          md += renderHiddenMessage(
-            sys.category,
-            sys.title,
-            sys.content,
-            depth
-          );
+
+      // segments가 있으면 순서대로 렌더링
+      if (assistantMsg.segments?.length) {
+        for (const seg of assistantMsg.segments) {
+          if (seg.type === 'text') {
+            if (seg.content) {
+              md += seg.content + '\n\n';
+            }
+          } else if (seg.type === 'hidden' && showHiddenMessages) {
+            const depth = resolveHiddenMessageDepth(seg.depth, normalizedHiddenMessageDepth);
+            md += renderHiddenMessage(seg.category, seg.title, seg.content, depth);
+          }
+        }
+      } else {
+        // 기존 로직: hiddenMessages 전체 + content
+        if (showHiddenMessages && assistantMsg.hiddenMessages?.length) {
+          for (const sys of assistantMsg.hiddenMessages) {
+            const depth = resolveHiddenMessageDepth(sys.depth, normalizedHiddenMessageDepth);
+            md += renderHiddenMessage(sys.category, sys.title, sys.content, depth);
+          }
+        }
+        // 메시지 내용
+        if (msg.content) {
+          md += msg.content + '\n';
         }
       }
-    }
-
-    // 메시지 내용
-    if (msg.content) {
-      md += msg.content + '\n';
+    } else {
+      // User/Hidden 메시지
+      if (msg.content) {
+        md += msg.content + '\n';
+      }
     }
 
     md += '\n';
   }
+
+  // 마크다운 표 앞에 빈 줄이 없으면 추가 (GFM 표준 준수)
+  // 패턴: 개행 하나 + 표 헤더 + 표 구분선 → 빈 줄 추가
+  md = md.replace(/([^\n])\n(\|[^\n]+\|\n\|[-:| ]+\|)/g, '$1\n\n$2');
 
   return md;
 }
@@ -716,6 +803,7 @@ function createAssistantMessage(input: AssistantMessageInput): AssistantMessage 
   const searchQueries = normalizeSearchQueries(input.searchQueries, 'AssistantMessageInput.searchQueries');
   const searchResults = normalizeSearchResults(input.searchResults, 'AssistantMessageInput.searchResults');
   const hiddenMessages = normalizeHiddenMessages(input.hiddenMessages, 'AssistantMessageInput.hiddenMessages');
+  const segments = normalizeSegments(input.segments, 'AssistantMessageInput.segments');
 
   return new AssistantMessage({
     content: input.content,
@@ -726,7 +814,8 @@ function createAssistantMessage(input: AssistantMessageInput): AssistantMessage 
     imageTitle: input.imageTitle,
     searchQueries,
     searchResults,
-    hiddenMessages
+    hiddenMessages,
+    segments
   });
 }
 

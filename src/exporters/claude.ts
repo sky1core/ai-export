@@ -178,70 +178,12 @@ Object.assign(AIExport, {
     // ⚠️ 메시지 타입 규칙:
     // 숨은 메시지 → 시스템 프롬프트, Thinking, Tool 호출/결과
     // UserMessage → 실제 사용자 입력만
-    // AssistantMessage → 사용자에게 보이는 응답만
+    // AssistantMessage → 사용자에게 보이는 응답만 (segments로 순서 유지)
     for (const msg of (rawData.chat_messages || [])) {
       const isHuman = msg.sender === 'human';
 
-      // 텍스트 추출
-      let content = '';
-      let thinking: { title: string; content: string } | null = null;
       const msgImages: ImageInfo[] = [];
       const msgFiles: FileInfo[] = [];
-
-      // Tool 관련 정보
-      const toolUses: ToolUse[] = [];
-      const toolResults: ToolResult[] = [];
-
-      if (msg.content && Array.isArray(msg.content)) {
-        // Thinking 블록 추출
-        for (const block of msg.content) {
-          if (block.type === 'thinking') {
-            thinking = {
-              title: block.summaries?.[0]?.summary || null,
-              content: block.thinking || ''
-            };
-          }
-        }
-
-        // 텍스트/툴 블록 추출
-        for (const block of msg.content) {
-          if (block.type === 'text') {
-            const text = block.text || '';
-            content += text + '\n';
-          } else if (block.type === 'tool_use') {
-            // Tool 호출 정보
-            toolUses.push({
-              id: block.id || '',
-              name: block.name || '',
-              input: block.input || {}
-            });
-            // create_file인 경우 파일 참조 추가
-            if (block.name === 'create_file' && block.input?.path) {
-              const sourceId = `${block.input.path}:create`;
-              const downloaded = fileMap.get(sourceId);
-              if (downloaded) {
-                msgFiles.push({ filename: downloaded.localName, originalName: downloaded.originalName });
-              }
-            }
-            // str_replace인 경우 파일 참조 추가
-            if (block.name === 'str_replace' && block.input?.path) {
-              const sourceId = `${block.input.path}:${block.id}`;
-              const downloaded = fileMap.get(sourceId);
-              if (downloaded) {
-                msgFiles.push({ filename: downloaded.localName, originalName: downloaded.originalName });
-              }
-            }
-          } else if (block.type === 'tool_result') {
-            // Tool 실행 결과
-            toolResults.push({
-              toolUseId: block.tool_use_id || '',
-              content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
-            });
-          }
-        }
-      } else {
-        content = msg.text || '';
-      }
 
       // 첨부 파일 매핑
       if (msg.files_v2?.length) {
@@ -272,74 +214,126 @@ Object.assign(AIExport, {
         }
       }
 
-      // 메인 메시지 content 구성
-      // 텍스트에서 thinking 요약 blockquote 제거 (> **Thinking**... / > *Thinking*... 형태)
-      let cleanContent = content.trim();
-      if (!isHuman) {
-        cleanContent = this.removeThinkingSummary(cleanContent);
-      }
-
-      // 메시지 생성 (core 메서드 사용 - 직접 할당 금지)
-      // 메시지 타입별로 분리하여 타입 안전성 확보
       if (isHuman) {
         // User 메시지
+        let content = '';
+        if (msg.content && Array.isArray(msg.content)) {
+          for (const block of msg.content) {
+            if (block.type === 'text') {
+              content += (block.text || '') + '\n';
+            }
+          }
+        } else {
+          content = msg.text || '';
+        }
+
         const userInput = {
-          content: cleanContent.trim(),
+          content: content.trim(),
           timestamp: msg.created_at ? new Date(msg.created_at).getTime() : null,
           images: msgImages.length > 0 ? msgImages : undefined,
           files: msgFiles.length > 0 ? msgFiles : undefined
         };
 
-        // 내용이 있거나 이미지/파일이 있으면 추가
         if (userInput.content || msgImages.length > 0 || msgFiles.length > 0) {
           builder.addUserMessage(userInput);
         }
       } else {
-        // Assistant 메시지
-        const hiddenMessages: { category: string; title?: string | null; depth?: number | null; content: string }[] = [];
+        // Assistant 메시지 - segments로 블록 순서 유지
+        type Segment =
+          | { type: 'text'; content: string }
+          | { type: 'hidden'; category: string; title?: string | null; depth?: number | null; content: string };
 
-        // assistant 메시지 안의 숨은 메시지들 (Thinking, Tool 등)
-        // Thinking (assistant 안에 포함)
-        if (thinking) {
-          hiddenMessages.push({
-            category: 'Thinking',
-            title: thinking.title || null,
-            content: thinking.content || ''
-          });
+        const segments: Segment[] = [];
+        const toolUseMap = new Map<string, ToolUse>();
+
+        if (msg.content && Array.isArray(msg.content)) {
+          for (const block of msg.content) {
+            if (block.type === 'thinking') {
+              // Thinking 블록
+              segments.push({
+                type: 'hidden',
+                category: 'Thinking',
+                title: block.summaries?.[0]?.summary || null,
+                content: block.thinking || ''
+              });
+            } else if (block.type === 'text') {
+              // Text 블록 - thinking 요약 제거
+              const cleanText = this.removeThinkingSummary(block.text || '').trim();
+              if (cleanText) {
+                segments.push({
+                  type: 'text',
+                  content: cleanText
+                });
+              }
+            } else if (block.type === 'tool_use') {
+              // Tool Call
+              const toolUse: ToolUse = {
+                id: block.id || '',
+                name: block.name || '',
+                input: block.input || {}
+              };
+              toolUseMap.set(toolUse.id, toolUse);
+
+              segments.push({
+                type: 'hidden',
+                category: 'Tool Call',
+                title: block.name || null,
+                depth: 2,
+                content: `\`\`\`\n${JSON.stringify(block.input, null, 2)}\n\`\`\``
+              });
+
+              // create_file/str_replace인 경우 파일 참조 추가
+              if (block.name === 'create_file' && block.input?.path) {
+                const sourceId = `${block.input.path}:create`;
+                const downloaded = fileMap.get(sourceId);
+                if (downloaded) {
+                  msgFiles.push({ filename: downloaded.localName, originalName: downloaded.originalName });
+                }
+              }
+              if (block.name === 'str_replace' && block.input?.path) {
+                const sourceId = `${block.input.path}:${block.id}`;
+                const downloaded = fileMap.get(sourceId);
+                if (downloaded) {
+                  msgFiles.push({ filename: downloaded.localName, originalName: downloaded.originalName });
+                }
+              }
+            } else if (block.type === 'tool_result') {
+              // Tool Result
+              const toolUse = toolUseMap.get(block.tool_use_id || '');
+              const resultContent = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
+              segments.push({
+                type: 'hidden',
+                category: 'Tool Result',
+                title: toolUse?.name || null,
+                depth: 2,
+                content: `\`\`\`\n${resultContent}\n\`\`\``
+              });
+            }
+          }
+        } else if (msg.text) {
+          // 단순 text 필드만 있는 경우
+          const cleanText = this.removeThinkingSummary(msg.text).trim();
+          if (cleanText) {
+            segments.push({ type: 'text', content: cleanText });
+          }
         }
 
-        // Tool 호출 (assistant 안에 포함)
-        for (const tool of toolUses) {
-          hiddenMessages.push({
-            category: 'Tool Call',
-            title: tool.name || null,
-            depth: 2,
-            content: `\`\`\`\n${JSON.stringify(tool.input, null, 2)}\n\`\`\``
-          });
-        }
-
-        // Tool 결과 (assistant 안에 포함)
-        for (const result of toolResults) {
-          const toolUse = toolUses.find(t => t.id === result.toolUseId);
-          hiddenMessages.push({
-            category: 'Tool Result',
-            title: toolUse?.name || null,
-            depth: 2,
-            content: result.content
-          });
-        }
+        // content 필드는 모든 text를 합친 것 (하위 호환용)
+        const allText = segments
+          .filter((s): s is { type: 'text'; content: string } => s.type === 'text')
+          .map(s => s.content)
+          .join('\n\n');
 
         const assistantInput = {
-          content: cleanContent.trim(),
+          content: allText,
           timestamp: msg.created_at ? new Date(msg.created_at).getTime() : null,
           model: msg.model || rawData.model,
           images: msgImages.length > 0 ? msgImages : undefined,
           files: msgFiles.length > 0 ? msgFiles : undefined,
-          hiddenMessages: hiddenMessages.length > 0 ? hiddenMessages : undefined
+          segments: segments.length > 0 ? segments : undefined
         };
 
-        // 내용이 있거나 이미지/파일이 있거나 hiddenMessages가 있으면 추가
-        if (assistantInput.content || msgImages.length > 0 || msgFiles.length > 0 || hiddenMessages.length > 0) {
+        if (assistantInput.content || msgImages.length > 0 || msgFiles.length > 0 || segments.length > 0) {
           builder.addAssistantMessage(assistantInput);
         }
       }
@@ -503,7 +497,7 @@ Object.assign(AIExport, {
       await AIExport.utils.downloadFile(dataUrl, `${basename}/${localName}`);
 
       return {
-        originalName: displayTitle,
+        originalName: displayTitle + ext,
         localName,
         isImage: false,
         sourceId: `${filePath}:create`
@@ -555,7 +549,7 @@ Object.assign(AIExport, {
       await AIExport.utils.downloadFile(dataUrl, `${basename}/${localName}`);
 
       return {
-        originalName: state.title,
+        originalName: state.title + state.ext,
         localName,
         isImage: false,
         sourceId: `${filePath}:${block.id}`
@@ -617,9 +611,10 @@ Object.assign(AIExport, {
     const url = att.url || att.preview_url;
 
     if (url) {
+      const idPrefix = att.id?.slice(0, 8) || String(fileIdx + 1).padStart(2, '0');
       const localName = isImage
         ? `image_${imageIdx + 1}${ext}`
-        : `file_${fileIdx + 1}_${AIExport.utils.sanitizeFilename(baseName).substring(0, 50)}${ext}`;
+        : `upload_${idPrefix}_${AIExport.utils.sanitizeFilename(baseName).substring(0, 50)}${ext}`;
       const downloaded = await this.downloadFile(url, basename, localName);
       if (!downloaded) return null;
       return { originalName, localName, isImage, sourceId: att.id };
@@ -630,11 +625,12 @@ Object.assign(AIExport, {
       // 파일명 정보가 없으면 순번으로 명명 (baseName이 'attachment'이면 파일명 정보 없는 것)
       const hasFileName = baseName && baseName !== 'attachment';
       const displayName = hasFileName ? baseName : `attachment_${fileIdx + 1}`;
-      const localName = AIExport.utils.sanitizeFilename(displayName).substring(0, 80) + ext;
+      const idPrefix = att.id?.slice(0, 8) || String(fileIdx + 1).padStart(2, '0');
+      const localName = `upload_${idPrefix}_${AIExport.utils.sanitizeFilename(displayName).substring(0, 80)}${ext}`;
 
       const downloaded = await this.saveTextContent(att.extracted_content, basename, localName);
       if (!downloaded) return null;
-      return { originalName: displayName, localName, isImage: false, sourceId: att.id };
+      return { originalName: displayName + ext, localName, isImage: false, sourceId: att.id };
     }
 
     return null;
@@ -665,7 +661,7 @@ Object.assign(AIExport, {
         await AIExport.utils.downloadFile(dataUrl, `${basename}/${localName}`);
 
         return {
-          originalName: `image_${imageIdx + 1}`,
+          originalName: localName,
           localName,
           isImage: true
         };
@@ -680,7 +676,7 @@ Object.assign(AIExport, {
       if (!downloaded) return null;
 
       return {
-        originalName: `image_${imageIdx + 1}`,
+        originalName: localName,
         localName,
         isImage: true
       };
