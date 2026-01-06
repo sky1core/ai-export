@@ -436,8 +436,7 @@ Object.assign(AIExport, {
       const fallbackExt = AIExport.utils.getExtensionFromMime(attachment.mime_type || '') || '';
       const sanitizedName = attachment.name ? AIExport.utils.sanitizeFilename(attachment.name) : '';
       const baseName = sanitizedName || `file${fallbackExt}`;
-      const idPrefix = attachment.id.slice(0, 8);
-      const filename = `upload_${idPrefix}_${baseName}`;
+      const filename = `upload_${attachmentCounter}_${baseName}`;
 
       return { filename, blob, originalName: attachment.name || baseName };
     };

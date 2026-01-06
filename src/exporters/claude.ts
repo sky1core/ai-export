@@ -611,10 +611,9 @@ Object.assign(AIExport, {
     const url = att.url || att.preview_url;
 
     if (url) {
-      const idPrefix = att.id?.slice(0, 8) || String(fileIdx + 1).padStart(2, '0');
       const localName = isImage
         ? `image_${imageIdx + 1}${ext}`
-        : `upload_${idPrefix}_${AIExport.utils.sanitizeFilename(baseName).substring(0, 50)}${ext}`;
+        : `upload_${fileIdx + 1}_${AIExport.utils.sanitizeFilename(baseName).substring(0, 50)}${ext}`;
       const downloaded = await this.downloadFile(url, basename, localName);
       if (!downloaded) return null;
       return { originalName, localName, isImage, sourceId: att.id };
@@ -625,8 +624,7 @@ Object.assign(AIExport, {
       // 파일명 정보가 없으면 순번으로 명명 (baseName이 'attachment'이면 파일명 정보 없는 것)
       const hasFileName = baseName && baseName !== 'attachment';
       const displayName = hasFileName ? baseName : `attachment_${fileIdx + 1}`;
-      const idPrefix = att.id?.slice(0, 8) || String(fileIdx + 1).padStart(2, '0');
-      const localName = `upload_${idPrefix}_${AIExport.utils.sanitizeFilename(displayName).substring(0, 80)}${ext}`;
+      const localName = `upload_${fileIdx + 1}_${AIExport.utils.sanitizeFilename(displayName).substring(0, 80)}${ext}`;
 
       const downloaded = await this.saveTextContent(att.extracted_content, basename, localName);
       if (!downloaded) return null;
