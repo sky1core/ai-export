@@ -202,7 +202,7 @@ const allowedFileInfoKeys = new Set(['filename', 'originalName']);
 const allowedHiddenMessageInfoKeys = new Set(['category', 'title', 'depth', 'content']);
 const allowedSearchResultKeys = new Set(['url', 'title', 'domain']);
 
-function assertAllowedKeys(value: Record<string, unknown>, allowed: Set<string>, context: string): void {
+function assertAllowedKeys(value: object, allowed: Set<string>, context: string): void {
   for (const key of Object.keys(value)) {
     if (!allowed.has(key)) {
       throw new Error(`[AIExport] Invalid field "${key}" in ${context}`);
@@ -229,7 +229,7 @@ function assertNumberOrNull(value: unknown, context: string): void {
 }
 
 // normalize*는 입력 스키마를 강제하고 렌더링 전에 일관된 형태로 만든다.
-function normalizeImages(images: ImageInfo[] | undefined, context: string): ImageInfo[] | undefined {
+function normalizeImages(images: ReadonlyArray<ImageInfo> | undefined, context: string): ImageInfo[] | undefined {
   if (images === null) {
     throw new Error(`[AIExport] Expected array for ${context}`);
   }
@@ -242,7 +242,7 @@ function normalizeImages(images: ImageInfo[] | undefined, context: string): Imag
       throw new Error(`[AIExport] Expected object for ${context}[${index}]`);
     }
     const ctx = `${context}[${index}]`;
-    assertAllowedKeys(img as Record<string, unknown>, allowedImageInfoKeys, ctx);
+    assertAllowedKeys(img, allowedImageInfoKeys, ctx);
     assertString(img.filename, `${ctx}.filename`);
     if (img.originalName !== undefined) {
       assertStringOrNull(img.originalName, `${ctx}.originalName`);
@@ -254,7 +254,7 @@ function normalizeImages(images: ImageInfo[] | undefined, context: string): Imag
   });
 }
 
-function normalizeFiles(files: FileInfo[] | undefined, context: string): FileInfo[] | undefined {
+function normalizeFiles(files: ReadonlyArray<FileInfo> | undefined, context: string): FileInfo[] | undefined {
   if (files === null) {
     throw new Error(`[AIExport] Expected array for ${context}`);
   }
@@ -267,7 +267,7 @@ function normalizeFiles(files: FileInfo[] | undefined, context: string): FileInf
       throw new Error(`[AIExport] Expected object for ${context}[${index}]`);
     }
     const ctx = `${context}[${index}]`;
-    assertAllowedKeys(file as Record<string, unknown>, allowedFileInfoKeys, ctx);
+    assertAllowedKeys(file, allowedFileInfoKeys, ctx);
     assertString(file.filename, `${ctx}.filename`);
     if (file.originalName !== undefined) {
       assertStringOrNull(file.originalName, `${ctx}.originalName`);
@@ -279,7 +279,7 @@ function normalizeFiles(files: FileInfo[] | undefined, context: string): FileInf
   });
 }
 
-function normalizeHiddenMessages(list: HiddenMessageInfo[] | undefined, context: string): HiddenMessageInfo[] | undefined {
+function normalizeHiddenMessages(list: ReadonlyArray<HiddenMessageInfo> | undefined, context: string): HiddenMessageInfo[] | undefined {
   if (list === null) {
     throw new Error(`[AIExport] Expected array for ${context}`);
   }
@@ -292,7 +292,7 @@ function normalizeHiddenMessages(list: HiddenMessageInfo[] | undefined, context:
       throw new Error(`[AIExport] Expected object for ${context}[${index}]`);
     }
     const ctx = `${context}[${index}]`;
-    assertAllowedKeys(msg as Record<string, unknown>, allowedHiddenMessageInfoKeys, ctx);
+    assertAllowedKeys(msg, allowedHiddenMessageInfoKeys, ctx);
     assertString(msg.category, `${ctx}.category`);
     if (msg.title !== undefined) {
       assertStringOrNull(msg.title, `${ctx}.title`);
@@ -312,7 +312,7 @@ function normalizeHiddenMessages(list: HiddenMessageInfo[] | undefined, context:
 
 const allowedSegmentKeys = new Set(['type', 'content', 'category', 'title', 'depth']);
 
-function normalizeSegments(list: Segment[] | undefined, context: string): Segment[] | undefined {
+function normalizeSegments(list: ReadonlyArray<Segment> | undefined, context: string): Segment[] | undefined {
   if (list === null) {
     throw new Error(`[AIExport] Expected array for ${context}`);
   }
@@ -325,7 +325,7 @@ function normalizeSegments(list: Segment[] | undefined, context: string): Segmen
       throw new Error(`[AIExport] Expected object for ${context}[${index}]`);
     }
     const ctx = `${context}[${index}]`;
-    assertAllowedKeys(seg as Record<string, unknown>, allowedSegmentKeys, ctx);
+    assertAllowedKeys(seg, allowedSegmentKeys, ctx);
 
     if (seg.type === 'text') {
       assertString(seg.content, `${ctx}.content`);
@@ -352,7 +352,7 @@ function normalizeSegments(list: Segment[] | undefined, context: string): Segmen
   });
 }
 
-function normalizeSearchQueries(queries: string[] | undefined, context: string): string[] | undefined {
+function normalizeSearchQueries(queries: ReadonlyArray<string> | undefined, context: string): string[] | undefined {
   if (queries === null) {
     throw new Error(`[AIExport] Expected array for ${context}`);
   }
@@ -366,7 +366,7 @@ function normalizeSearchQueries(queries: string[] | undefined, context: string):
   return [...queries];
 }
 
-function normalizeSearchResults(results: SearchResult[] | undefined, context: string): SearchResult[] | undefined {
+function normalizeSearchResults(results: ReadonlyArray<SearchResult> | undefined, context: string): SearchResult[] | undefined {
   if (results === null) {
     throw new Error(`[AIExport] Expected array for ${context}`);
   }
@@ -379,7 +379,7 @@ function normalizeSearchResults(results: SearchResult[] | undefined, context: st
       throw new Error(`[AIExport] Expected object for ${context}[${index}]`);
     }
     const ctx = `${context}[${index}]`;
-    assertAllowedKeys(result as Record<string, unknown>, allowedSearchResultKeys, ctx);
+    assertAllowedKeys(result, allowedSearchResultKeys, ctx);
     assertString(result.url, `${ctx}.url`);
     assertString(result.title, `${ctx}.title`);
     if (result.domain !== undefined) {
@@ -408,7 +408,7 @@ function assertValidMessage(msg: unknown, index: number): asserts msg is Message
   }
 
   if (isHidden) {
-    assertAllowedKeys(msg as Record<string, unknown>, allowedHiddenKeys, `HiddenMessage[${index}]`);
+    assertAllowedKeys(msg, allowedHiddenKeys, `HiddenMessage[${index}]`);
     assertString((msg as HiddenMessage).category, `HiddenMessage[${index}].category`);
     if ((msg as HiddenMessage).depth !== undefined) {
       assertNumberOrNull((msg as HiddenMessage).depth, `HiddenMessage[${index}].depth`);
@@ -418,9 +418,9 @@ function assertValidMessage(msg: unknown, index: number): asserts msg is Message
   }
 
   if (isUser) {
-    assertAllowedKeys(msg as Record<string, unknown>, allowedUserKeys, `UserMessage[${index}]`);
+    assertAllowedKeys(msg, allowedUserKeys, `UserMessage[${index}]`);
   } else {
-    assertAllowedKeys(msg as Record<string, unknown>, allowedAssistantKeys, `AssistantMessage[${index}]`);
+    assertAllowedKeys(msg, allowedAssistantKeys, `AssistantMessage[${index}]`);
     const assistant = msg as AssistantMessage;
     if (assistant.model !== undefined) {
       assertStringOrNull(assistant.model, `AssistantMessage[${index}].model`);
@@ -754,7 +754,7 @@ function toMarkdown(conversation: Conversation, options: ExportOptions = {}): st
  * - exporter는 content에 마크다운 포맷을 직접 만들지 않는다.
  */
 function createUserMessage(input: UserMessageInput): UserMessage {
-  assertAllowedKeys(input as Record<string, unknown>, allowedUserInputKeys, 'UserMessageInput');
+  assertAllowedKeys(input, allowedUserInputKeys, 'UserMessageInput');
   assertString(input.content, 'UserMessageInput.content');
   if (input.timestamp !== undefined) {
     assertNumberOrNull(input.timestamp, 'UserMessageInput.timestamp');
@@ -785,7 +785,7 @@ function createUserMessage(input: UserMessageInput): UserMessage {
  * - 인용/헤더 포맷은 core에서 처리한다 (content 내부 포맷은 exporter가 제공 가능).
  */
 function createAssistantMessage(input: AssistantMessageInput): AssistantMessage {
-  assertAllowedKeys(input as Record<string, unknown>, allowedAssistantInputKeys, 'AssistantMessageInput');
+  assertAllowedKeys(input, allowedAssistantInputKeys, 'AssistantMessageInput');
   assertString(input.content, 'AssistantMessageInput.content');
   if (input.timestamp !== undefined) {
     assertNumberOrNull(input.timestamp, 'AssistantMessageInput.timestamp');
@@ -823,7 +823,7 @@ function createAssistantMessage(input: AssistantMessageInput): AssistantMessage 
  * 숨은 메시지 생성 (독립적 숨은 메시지)
  */
 function createHiddenMessage(input: HiddenMessageInput): HiddenMessage {
-  assertAllowedKeys(input as Record<string, unknown>, allowedHiddenInputKeys, 'HiddenMessageInput');
+  assertAllowedKeys(input, allowedHiddenInputKeys, 'HiddenMessageInput');
   assertString(input.category, 'HiddenMessageInput.category');
   if (input.title !== undefined) {
     assertStringOrNull(input.title, 'HiddenMessageInput.title');
@@ -843,7 +843,7 @@ function createHiddenMessage(input: HiddenMessageInput): HiddenMessage {
 
 // exporter는 messages 배열에 직접 push하지 말고 builder만 사용한다.
 function createConversationBuilder(init: ConversationInit): ConversationBuilder {
-  assertAllowedKeys(init as Record<string, unknown>, allowedConversationInitKeys, 'ConversationInit');
+  assertAllowedKeys(init, allowedConversationInitKeys, 'ConversationInit');
   assertString(init.title, 'ConversationInit.title');
   assertString(init.service, 'ConversationInit.service');
   assertString(init.basename, 'ConversationInit.basename');

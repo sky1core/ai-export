@@ -81,12 +81,12 @@ export interface ConversationBuilder {
   build(): Conversation;
 }
 
-function freezeStringList(list?: string[]): string[] | undefined {
+function freezeStringList(list?: readonly string[]): readonly string[] | undefined {
   if (!list || list.length === 0) return undefined;
   return Object.freeze([...list]);
 }
 
-function freezeObjectList<T extends object>(list?: T[]): T[] | undefined {
+function freezeObjectList<T extends object>(list?: readonly T[]): readonly T[] | undefined {
   if (!list || list.length === 0) return undefined;
   const frozen = list.map((item) => Object.freeze({ ...item }));
   return Object.freeze(frozen);
@@ -96,11 +96,11 @@ function freezeObjectList<T extends object>(list?: T[]): T[] | undefined {
 export class UserMessage {
   readonly content: string;
   readonly timestamp?: number | null;
-  readonly images?: ImageInfo[];
-  readonly files?: FileInfo[];
+  readonly images?: readonly ImageInfo[];
+  readonly files?: readonly FileInfo[];
   readonly imageTitle?: string | null;
-  readonly searchQueries?: string[];
-  readonly searchResults?: SearchResult[];
+  readonly searchQueries?: readonly string[];
+  readonly searchResults?: readonly SearchResult[];
   #brand: true = true;
 
   constructor(input: UserMessageInput) {
@@ -119,14 +119,14 @@ export class UserMessage {
 export class AssistantMessage {
   readonly content: string;
   readonly timestamp?: number | null;
-  readonly images?: ImageInfo[];
-  readonly files?: FileInfo[];
+  readonly images?: readonly ImageInfo[];
+  readonly files?: readonly FileInfo[];
   readonly imageTitle?: string | null;
-  readonly searchQueries?: string[];
-  readonly searchResults?: SearchResult[];
+  readonly searchQueries?: readonly string[];
+  readonly searchResults?: readonly SearchResult[];
   readonly model?: string | null;
-  readonly hiddenMessages?: HiddenMessageInfo[];
-  readonly segments?: Segment[];  // 블록 순서 유지용
+  readonly hiddenMessages?: readonly HiddenMessageInfo[];
+  readonly segments?: readonly Segment[];  // 블록 순서 유지용
   #brand: true = true;
 
   constructor(input: AssistantMessageInput) {
@@ -215,7 +215,7 @@ export interface AIExportUtils {
 export interface AIExportType {
   utils: AIExportUtils;
   toMarkdown(conversation: Conversation, options?: ExportOptions): string;
-  _renderHeader(msg: Message, showTimestamp: boolean): string;
+  _renderHeader(msg: Message, showTimestamp: boolean, showModelName: boolean): string;
 
   // Conversation builder (exporter entrypoint)
   createConversationBuilder(init: ConversationInit): ConversationBuilder;
