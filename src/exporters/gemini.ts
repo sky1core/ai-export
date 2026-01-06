@@ -260,12 +260,16 @@ Object.assign(AIExport, {
   },
 
   // 유틸리티 함수들
+  getTitle(): string | null {
+    const title = document.title;
+    if (!title || title === 'Gemini') return null;
+    // "제목 - Gemini" 형식에서 " - Gemini" 제거
+    const cleaned = title.replace(/ - Gemini$/, '');
+    return cleaned !== title ? cleaned : title;
+  },
+
   extractTitle(): string {
-    const titleEl = document.querySelector('.conversation-title, [data-conversation-title]');
-    if (titleEl && titleEl.textContent?.trim()) {
-      return titleEl.textContent.trim();
-    }
-    return 'Gemini Conversation';
+    return this.getTitle() || 'Gemini Conversation';
   },
 
   getConversationIdFromUrl(): string | null {

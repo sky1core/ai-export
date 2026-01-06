@@ -1217,6 +1217,12 @@ Object.assign(AIExport, {
   replaceCitationMarkers,
 
   // 유틸리티 함수들
+  getTitle(): string | null {
+    const title = document.title;
+    if (!title || title === 'ChatGPT') return null;
+    return title;
+  },
+
   getConversationIdFromUrl(): string | null {
     const url = new URL(window.location.href);
     const pathParts = url.pathname.split('/').filter(Boolean);

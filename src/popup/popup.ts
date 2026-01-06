@@ -13,6 +13,7 @@ interface ServiceInfoResponse {
   service?: string;
   serviceName?: string;
   conversationId?: string | null;
+  title?: string | null;
 }
 
 // 옵션 로드
@@ -65,6 +66,7 @@ function isSupportedUrl(url: string | undefined): boolean {
 // 서비스 정보 조회
 async function loadServiceInfo(): Promise<void> {
   const infoServiceEl = document.getElementById('infoService')!;
+  const infoTitleEl = document.getElementById('infoTitle')!;
   const noticeEl = document.getElementById('notice')!;
 
   try {
@@ -82,6 +84,15 @@ async function loadServiceInfo(): Promise<void> {
       infoServiceEl.textContent = response.serviceName || '';
       infoServiceEl.className = `info-value service ${response.service}`;
 
+      // 제목 표시
+      if (response.title) {
+        infoTitleEl.textContent = response.title;
+        infoTitleEl.title = response.title; // 툴팁으로 전체 제목 표시
+      } else {
+        infoTitleEl.textContent = '새 대화';
+        infoTitleEl.className = 'info-title info-title-empty';
+      }
+
       // 서비스별 주의사항 표시
       const notice = SERVICE_NOTICES[response.service || ''];
       if (notice) {
@@ -92,6 +103,7 @@ async function loadServiceInfo(): Promise<void> {
       const errorMsg = isSupportedUrl(tab.url) ? '페이지 새로고침 필요' : '지원되지 않는 페이지';
       infoServiceEl.textContent = errorMsg;
       infoServiceEl.className = 'info-value info-error';
+      infoTitleEl.textContent = '';
     }
   } catch (error) {
     console.error('[Popup] getInfo error:', error);
@@ -99,6 +111,7 @@ async function loadServiceInfo(): Promise<void> {
     const errorMsg = isSupportedUrl(tab?.url) ? '페이지 새로고침 필요' : '지원되지 않는 페이지';
     infoServiceEl.textContent = errorMsg;
     infoServiceEl.className = 'info-value info-error';
+    infoTitleEl.textContent = '';
   }
 }
 

@@ -30,7 +30,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       success: true,
       service: AIExport.service,
       serviceName: AIExport.serviceName,
-      conversationId: AIExport.getConversationIdFromUrl?.() || null
+      conversationId: AIExport.getConversationIdFromUrl?.() || null,
+      title: AIExport.getTitle?.() || null
     };
     console.log('[AI Export] GetInfo result:', result);
     sendResponse(result);

@@ -229,6 +229,7 @@ export interface AIExportType {
   // Claude exporter
   buildStandardConversation?: (rawData: unknown, context: unknown) => Conversation;
   getConversationIdFromUrl?: () => string | null;
+  getTitle?: () => string | null;
 
   // ChatGPT exporter
   extractConversation?: () => Promise<unknown>;

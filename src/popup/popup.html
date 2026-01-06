@@ -163,6 +163,20 @@
     .info-notice.visible {
       display: block;
     }
+
+    .info-title {
+      font-size: 13px;
+      color: #fff;
+      margin-top: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .info-title-empty {
+      color: #666;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -173,6 +187,7 @@
 
   <div id="info" class="info">
     <span id="infoService" class="info-value info-loading">로딩 중...</span>
+    <div id="infoTitle" class="info-title"></div>
     <div id="notice" class="info-notice"></div>
   </div>
 

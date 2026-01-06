@@ -710,6 +710,13 @@ Object.assign(AIExport, {
   },
 
   // 유틸리티 함수들
+  getTitle(): string | null {
+    const title = document.title;
+    if (!title || title === 'Claude') return null;
+    // "제목 - Claude" 형식에서 " - Claude" 제거
+    return title.replace(/ - Claude$/, '');
+  },
+
   getConversationIdFromUrl(): string | null {
     const url = new URL(window.location.href);
     const pathParts = url.pathname.split('/').filter(Boolean);
