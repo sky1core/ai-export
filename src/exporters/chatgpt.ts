@@ -9,6 +9,11 @@ import {
   type SearchResult,
 } from '../types/index.js';
 
+import {
+  removeCitationMarkers,
+  replaceCitationMarkers,
+} from './chatgpt-citation.js';
+
 // ChatGPT API 원본 데이터 타입
 interface ChatGPTRawData {
   title?: string;
@@ -974,9 +979,9 @@ Object.assign(AIExport, {
         content = msg.content.text;
       }
 
-      // Citation 마커 처리
+      // Citation 마커 처리 (원본 content 기준 인덱스이므로 trim 하지 않고 전달)
       const contentReferences = msg.metadata?.content_references;
-      const processedContent = this.replaceCitationMarkers(content.trim(), contentReferences);
+      const processedContent = this.replaceCitationMarkers(content, contentReferences);
 
       const message: ExtractedMessage = {
         nodeId: id,
@@ -1152,14 +1157,8 @@ Object.assign(AIExport, {
     return { filename, blob };
   },
 
-  // citation 마커 제거
-  removeCitationMarkers(text: string): string {
-    if (!text) return text;
-    return text.replace(/\u3010[^】]*\u3011/g, '')
-               .replace(/[\uE200-\uE2FF]/g, '')  // Private Use Area 문자 제거
-               .replace(/(?:file)?citetur(?:n\d*[a-zA-Z]*\d*)?/g, '')
-               .replace(/turn\d+[a-zA-Z]+\d+/g, '');  // cite 없이 turn만 있는 경우
-  },
+  // citation 마커 제거 (exported 함수 사용)
+  removeCitationMarkers,
 
   // currentNode가 없을 때 사용하는 기존 DFS 방식
   extractMessagesLegacy(mapping: Record<string, ChatGPTNode>): ExtractedMessage[] {
@@ -1214,32 +1213,8 @@ Object.assign(AIExport, {
     return messages;
   },
 
-  // Citation 마커를 링크로 대체
-  replaceCitationMarkers(text: string, contentReferences?: ChatGPTContentReference[]): string {
-    if (!text) return text;
-
-    // Private Use Area 문자 먼저 제거 (citation 마커를 감싸는 특수 문자)
-    const cleanText = text.replace(/[\uE200-\uE2FF]/g, '');
-
-    if (!contentReferences?.length) {
-      // fileciteturn0file0, citeturn0view0, citetur, turn0view0 등 다양한 형식 처리
-      return cleanText.replace(/(?:file)?citetur(?:n\d*[a-zA-Z]*\d*)?/g, '')
-                      .replace(/turn\d+[a-zA-Z]+\d+/g, '').trim();
-    }
-
-    const sorted = [...contentReferences].sort((a, b) => b.start_idx - a.start_idx);
-
-    let result = cleanText;
-    for (const ref of sorted) {
-      if (ref.matched_text && ref.alt) {
-        result = result.substring(0, ref.start_idx) + ref.alt + result.substring(ref.end_idx);
-      }
-    }
-
-    // 대체되지 않고 남은 citation marker 제거 (부분 매칭된 잔여물 포함)
-    return result.replace(/(?:file)?citetur(?:n\d*[a-zA-Z]*\d*)?/g, '')
-                 .replace(/turn\d+[a-zA-Z]+\d+/g, '').trim();
-  },
+  // Citation 마커를 링크로 대체 (exported 함수 사용)
+  replaceCitationMarkers,
 
   // 유틸리티 함수들
   getConversationIdFromUrl(): string | null {
